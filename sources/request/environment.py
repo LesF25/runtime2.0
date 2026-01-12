@@ -1,53 +1,56 @@
+import socket
+import sys
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
 
-#from builtins import str
-from builtins import object
-import os, socket
+from sources.version import SERVER_NAME, SERVER_VERSION
+from sources.web.wsgi_request_handler import VDOM_wsgi_request_handler
 
-from version import SERVER_NAME, SERVER_VERSION
 
-class VDOM_environment(object):
-	"""environment variables"""
+class VDOM_environment:
+	def __init__(
+		self,
+		headers: dict[str, Any],
+		handler: VDOM_wsgi_request_handler,
+	) -> None:
+		self.__environment = {
+			f'HTTP_{key.upper()}': str(val)
+			for key, val in headers.items()
+		}
 
-	def __init__(self, headers, handler):
-		""" Constructor """
-		self.__environment = {}
-		for k in list(headers.keys()):
-			self.__environment["HTTP_%s" % k.upper()] = str(headers[k])
+		self.__environment['REQUEST_METHOD'] = handler.command
+		self.__environment['DOCUMENT_ROOT'] = str(Path.cwd())
+		self.__environment['GATEWAY_INTERFACE'] = 'CGI/1.1'
 
-		self.__environment["REQUEST_METHOD"] = str(handler.command)
-		self.__environment["DOCUMENT_ROOT"] = str(os.getcwd())
-		self.__environment["GATEWAY_INTERFACE"] = str("CGI/1.1")
+		parsed_url = urlparse(handler.path)
+		url_path = parsed_url.path
 
-		request_uri = str(handler.path)
-		request_uri = request_uri.split('//')[-1]
-		rrr = request_uri.split('/', 1)
-		if len(rrr) > 1: request_uri = rrr[1]
-		else: request_uri = rrr[0]
-		self.__environment["REQUEST_URI"] = '/' + request_uri
+		self.__environment['REQUEST_URI'] = url_path
+		self.__environment['QUERY_STRING'] = parsed_url.query
 
-		self.__environment["REMOTE_ADDR"] = str(handler.client_address[0])
-		self.__environment["REMOTE_PORT"] = str(handler.client_address[1])
-		self.__environment["SERVER_ADDR"] = str(socket.gethostbyname(socket.gethostname())) # str(handler.server.server_address[0])
-
-		hh = ""
-		if "HTTP_HOST" not in self.__environment:
-			hh = self.__environment["SERVER_ADDR"]
-		else: hh = self.__environment["HTTP_HOST"]
-		hh = hh.split(":")[0]
-		self.__environment["HTTP_HOST"] = hh
-		self.__environment["SERVER_PORT"] = str(handler.server.server_address[1])
-		self.__environment["SERVER_NAME"] = SERVER_NAME
-		self.__environment["SERVER_VERSION"] = SERVER_VERSION
-		self.__environment["SERVER_PROTOCOL"] = str("HTTP/1.1")
-		self.__environment["SERVER_SOFTWARE"] = "Python 2.5"
-		request_list = str(handler.path).split("?", 1)
-		if request_list[0].find("..") != -1:
-			self.__environment["SCRIPT_NAME"] = "/"
+		if '..' in Path(url_path).parts:
+			self.__environment['SCRIPT_NAME'] = '/'
 		else:
-			self.__environment["SCRIPT_NAME"] = request_list[0]
-		try: self.__environment["QUERY_STRING"] = request_list[1] if len(request_list)>1 else ""
-		except: self.__environment["QUERY_STRING"] = ""
+			self.__environment['SCRIPT_NAME'] = url_path
 
+		self.__environment['REMOTE_ADDR'] = str(handler.client_address[0])
+		self.__environment['REMOTE_PORT'] = str(handler.client_address[1])
+
+		server_ip = socket.gethostbyname(
+			socket.gethostname()
+		)
+		self.__environment['SERVER_ADDR'] = server_ip
+
+		http_host = self.__environment.get('HTTP_HOST', server_ip)
+		self.__environment['HTTP_HOST'] = http_host.split(':')[0]
+		self.__environment['SERVER_PORT'] = str(handler.server.server_address[1])
+
+		self.__environment['SERVER_NAME'] = SERVER_NAME
+		self.__environment['SERVER_VERSION'] = SERVER_VERSION
+		self.__environment['SERVER_PROTOCOL'] = 'HTTP/1.1'
+		self.__environment['SERVER_SOFTWARE'] = f'Python {sys.version_info.major}.{sys.version_info.minor}'
+
+	@property
 	def environment(self):
-		"""access environment property"""
 		return self.__environment

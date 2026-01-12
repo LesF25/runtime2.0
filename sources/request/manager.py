@@ -1,62 +1,32 @@
-"""Request Manager module"""
-
-
-
-import sys, _thread
+import threading
 
 from utils.exception import VDOM_exception
-from utils.semaphore import VDOM_semaphore
 
-class VDOM_request_manager(dict):
-	"""Request manager class"""
 
-	def __init__(self):
-		"""constructor"""
-		dict.__init__(self)
-		self.__sem = VDOM_semaphore()
+class VDOM_request_manager:
+	def __init__(self) -> None:
+		self._local = threading.local()
 
-	def __getitem__(self, key):
-		raise AttributeError
+	@property
+	def current(self):
+		request = getattr(self._local, 'current_request')
+		if request is None:
+			raise VDOM_exception(
+				'No request associated with current thread'
+			)
 
-	def __setitem__(self, key, value):
-		raise AttributeError
+		return request
 
-	def __delitem__(self, key):
-		raise AttributeError
+	@current.setter
+	def current(self, request) -> None:
+		self._local.current_request = request
 
-	def __contains__(self, key):
-		raise AttributeError
+	@current.deleter
+	def current(self) -> None:
+		if hasattr(self._local, 'current_request'):
+			del self._local.current_request
 
-	def get_request(self):
-		"""This method should be thread-safe"""
-		#self.__sem.lock()
-		try:
-			
-			r = self.get(_thread.get_ident(),None)
-			if r:
-				return r
-			raise VDOM_exception(("No request associated with current thread"))
-		except:
-			raise VDOM_exception(("No request associated with current thread"))
-		#finally:
-		#	self.__sem.unlock()
-
-	def set_request(self, request):
-		self.__sem.lock()
-		#debug("set request")
-		try:
-			dict.__setitem__(self, _thread.get_ident(), request)
-		finally:
-			self.__sem.unlock()
-
-	def remove_request(self):
-		self.__sem.lock()
-		#debug("remove request")
-		try:
-			dict.__delitem__(self, _thread.get_ident())
-		except:
-			pass
-		finally:
-			self.__sem.unlock()
-
-	current = property(get_request, set_request, remove_request)
+	def __getitem__(self, key) -> None: raise AttributeError
+	def __setitem__(self, key, value) -> None: raise AttributeError
+	def __delitem__(self, key) -> None: raise AttributeError
+	def __contains__(self, key) -> None: raise AttributeError

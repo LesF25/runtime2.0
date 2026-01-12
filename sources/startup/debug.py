@@ -1,16 +1,17 @@
-
-from builtins import object
 import sys
-
 
 LOGGING = None
 
 
-def debug(message, tag="", console=None):
-    sys.stdout.write("%s%s\n" % ("[%s]  " % tag if tag else "", message))
+def debug(
+    message,
+    tag: str = '',
+    console = None,
+):
+    prefix = f'[{tag}]  ' if tag else ''
+    print(f'{prefix}{message}', file=sys.stdout)
 
 
-class DebugFile(object):
-
-    def write(self, message):
+class DebugFile:
+    def write(self, message) -> None:
         debug(message)

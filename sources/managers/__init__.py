@@ -1,55 +1,47 @@
-
-from builtins import object
 import sys
 from threading import RLock
-
-# def register(name, manager_class):
-#     globals()[name] = manager_class()
+from typing import Any
 
 
-# def has(*names):
-#     namespace = globals()
-#     for name in names:
-#         if name not in namespace:
-#             return False
-#     return True
-
-class Managers(object):
-
-    __name__ = __name__
+class Managers:
+    """Registry for lazy-loaded manager instances."""
 
     def __init__(self):
         self._lock = RLock()
-        self._lazy = {}
+        self._lazy_registry = {}
 
-    def register(self, name, manager_class, lazy=False):
+    def register(
+        self,
+        name: str,
+        manager_class: type,
+        lazy: bool = False,
+    ) -> None:
         with self._lock:
             if lazy:
-                self._lazy[name] = manager_class
+                self._lazy_registry[name] = manager_class
             else:
                 setattr(self, name, manager_class())
 
-    def has(self, *names):
-        for name in names:
-            if not (name in self.__dict__ or name in self._lazy):
-                return False
-        return True
+    def has(self, *names: str) -> bool:
+        return all(
+            hasattr(self, name) or name in self._lazy_registry
+            for name in names
+        )
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any | None:
         with self._lock:
-            instance = self.__dict__.get(name)
-            if instance:
+            if instance := self.__dict__.get(name):
                 return instance
-            else:
-                manager_class = self._lazy.get(name)
-                if manager_class:
-                    instance = manager_class()
-                    setattr(self, name, instance)
-                    return instance
-                elif name == '__spec__':
-                    return None
-                else:
-                    raise AttributeError(name)
+
+            if manager_class := self._lazy_registry.get(name):
+                instance = manager_class()
+                setattr(self, name, instance)
+                return instance
+
+            if name == '__spec__':
+                return None
+
+            raise AttributeError(name)
 
 
 sys.modules[__name__] = Managers()
