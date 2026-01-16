@@ -1,22 +1,23 @@
-"""
-User class module
-"""
-from builtins import object
-from hashlib import md5
+import hashlib
+from dataclasses import dataclass, field
 
-class VDOM_user(object):
-	"""User class defines behaviour of account"""
 
-	def __init__(self):
-		self.id = ""
-		self.login = ""
-		self.password = ""
-		self.first_name = ""
-		self.last_name = ""
-		self.email = ""
-		self.security_level = ""
-		self.member_of = []	# list of group names
-		self.system = False
+@dataclass(slots=True)
+class VDOM_user:
+    """User class defines behaviour of account"""
 
-	def get_password_hash(self):
-		return md5(self.password).hexdigest()
+    id: str = ''
+    login: str = ''
+    password: str = ''
+    first_name: str = ''
+    last_name: str = ''
+    email: str = ''
+    security_level: str = ''
+    system: bool = False
+
+    member_of: list[str] = field(
+		default_factory=list
+	)
+
+    def get_password_hash(self) -> str:
+        return hashlib.md5(self.password.encode()).hexdigest()
