@@ -1,155 +1,150 @@
+import dataclasses
 
-from builtins import object
+from sources import managers
+from sources.request.environment import VDOM_environment
+from sources.request.headers import VDOM_headers as VDOM_headers_
+from sources.request.arguments import VDOM_request_arguments
+from sources.utils.file_argument import File_argument, Attachment
 
-import managers
-from utils.file_argument import File_argument, Attachment
 
-
-class VDOM_arguments(object):
+@dataclasses.dataclass
+class VDOM_arguments:
+    arguments: VDOM_request_arguments
 
     def __getitem__(self, name):
-        value = managers.request_manager.current.arguments().arguments()[name]
-        good = (isinstance(value, list) and len(value) > 0)
-        # in case of File_argumet value is not list, will raise TypeError
-        if not good:
-            raise TypeError
-        return self.__try_decode(value[0])
+        value = self.arguments[name]
+
+        if (
+            isinstance(value, list)
+            and value
+        ):
+            return self.__try_decode(value[0])
+
+        raise TypeError
+
+    def __iter__(self):
+        return iter(self.arguments)
+
+    def keys(self):
+        return list(self.arguments.keys())
 
     def get(self, name, default=None, castto=None):
-        value = managers.request_manager.current.arguments().arguments().get(name, None)
+        if (value := self.arguments.get(name)) is None:
+            return default
 
-        good = ((isinstance(value, list) and len(value) > 0) or isinstance(value, File_argument))
-        if not good:
+        if not (
+            (
+                isinstance(value, list)
+                and value
+            )
+            or isinstance(value, File_argument)
+        ):
             return default
 
         if castto is list:
             return [self.__try_decode(item) for item in value]
-        elif castto is Attachment:
+
+        if castto is Attachment:
             if isinstance(value, File_argument):
                 return Attachment(value)
-            else:
-                return default
-        else:
-            if isinstance(value, File_argument):
-                return default
-            item = self.__try_decode(value[0])
-            return castto(item) if castto and item else item
+            return default
+
+        if isinstance(value, File_argument):
+            return default
+
+        item = self.__try_decode(value[0])
+        return castto(item) if castto and item else item
 
     def __try_decode(self, item):
         if isinstance(item, bytes):
-            return bytes(item).decode("utf-8", "ignore")
-        else:
-            return item
-
-    def keys(self):
-        return list(managers.request_manager.current.arguments().arguments().keys())
-
-    def __iter__(self):
-        return iter(managers.request_manager.current.arguments().arguments())  # iter is only keys
+            return bytes(item).decode('utf-8', 'ignore')
+        return item
 
 
-class VDOM_headers(object):
+@dataclasses.dataclass
+class VDOM_headers:
+    headers: VDOM_headers_
+    headers_out: VDOM_headers_
 
     def __getitem__(self, name):
-        return managers.request_manager.current.headers().headers()[name.lower()]
+        return self.headers[name]
 
-    def get(self, name, default=None):
-        return managers.request_manager.current.headers().headers().get(name.lower(), default)
+    def get(self, name, default = None):
+        return self.headers.get(name, default)
 
-    def keys(self):
-        return list(managers.request_manager.current.headers().headers().keys())
+    def keys(self) -> list[str]:
+        return list(self.headers.keys())
 
     def __contains__(self, name):
-        return name.lower() in managers.request_manager.current.headers_out().headers()
+        return name in self.headers_out
 
     def __iter__(self):
-        return iter(managers.request_manager.current.headers_out().headers())
+        return iter(self.headers_out)
 
 
-class VDOM_client_information(object):
+@dataclasses.dataclass
+class VDOM_client_information:
+    environment: VDOM_environment
 
-    def _get_host(self):
-        return managers.request_manager.current.environment().environment()["REMOTE_ADDR"]
+    @property
+    def host(self) -> str:
+        return self.environment.remote_addr
 
-    def _get_address(self):
-        return managers.request_manager.current.environment().environment()["REMOTE_ADDR"]
+    @property
+    def address(self) -> str:
+        return self.environment.remote_addr
 
-    def _get_port(self):
-        return int(managers.request_manager.current.environment().environment()["REMOTE_PORT"])
-
-    host = property(_get_host)
-    address = property(_get_address)
-    port = property(_get_port)
-
-
-class VDOM_server_information(object):
-
-    def _get_host(self):
-        return managers.request_manager.current.environment().environment()["HTTP_HOST"]
-
-    def _get_address(self):
-        return managers.request_manager.current.environment().environment()["SERVER_ADDR"]
-
-    def _get_port(self):
-        return int(managers.request_manager.current.environment().environment()["SERVER_PORT"])
-
-    host = property(_get_host)
-    address = property(_get_address)
-    port = property(_get_port)
+    @property
+    def port(self) -> int:
+        return int(self.environment.remote_port)
 
 
-class VDOM_protocol_information(object):
+@dataclasses.dataclass
+class VDOM_server_information:
+    environment: VDOM_environment
 
-    def _get_name(self):
-        return managers.request_manager.current.environment().environment()["SERVER_PROTOCOL"].split("/")[0]
+    @property
+    def host(self) -> str:
+        return self.environment.http_host
 
-    def _get_version(self):
-        return managers.request_manager.current.environment().environment()["SERVER_PROTOCOL"].split("/")[1]
+    @property
+    def address(self) -> str:
+        return self.environment.server_addr
 
-    name = property(_get_name)
-    version = property(_get_version)
-
-
-class VDOM_shared_variables(object):
-
-    def __getitem__(self, name):
-        return managers.request_manager.current.shared_variables.get(name)
-
-    def keys(self):
-        return list(managers.request_manager.current.shared_variables.keys())
+    @property
+    def port(self) -> int:
+        return int(self.environment.server_port)
 
 
-class VDOM_request(object):
+@dataclasses.dataclass
+class VDOM_protocol_information:
+    environment: VDOM_environment
 
-    def __init__(self):
-        self._arguments = VDOM_arguments()
-        self._headers = VDOM_headers()
-        self._client = VDOM_client_information()
-        self._server = VDOM_server_information()
-        self._protocol = VDOM_protocol_information()
-        self._shared_vars = VDOM_shared_variables()
+    @property
+    def name(self) -> str:
+        return self.environment.server_protocol.split('/')[0]
 
-    def _get_environment(self):
-        return managers.request_manager.current.environment().environment()
+    @property
+    def version(self) -> str:
+        return self.environment.server_protocol.split('/')[1]
 
-    def _get_cookies(self):
-        return managers.request_manager.current.cookies()
 
-    def _get_container(self):  # TODO: change stub to real container object
-        class container_stub(object):
-            def __init__(self):
-                self.id = managers.request_manager.current.container_id
-        return container_stub()
+class VDOM_request:
+    def __init__(self) -> None:
+        request = managers.request_manager.current
 
-    def _get_render_type(self):
-        return managers.request_manager.current.render_type
+        env = request.environment
+        self.client = VDOM_client_information(env)
+        self.server = VDOM_server_information(env)
+        self.protocol = VDOM_protocol_information(env)
 
-    def _get_dyn_libraries(self):
-        return managers.request_manager.current.dyn_libraries
+        self.headers = VDOM_headers(
+            headers=request.headers,
+            headers_out=request.headers_out,
+        )
 
-    def uploaded_file(self, guid):
-        u_file = managers.session_manager.current.files.pop(guid, None)
-        return Attachment(u_file) if u_file else None
+        self.arguments = VDOM_arguments(request.arguments)
+        self.shared_vars = request.shared_variables
 
     def clear_files(self):
         files = managers.session_manager.current.files
@@ -157,14 +152,29 @@ class VDOM_request(object):
             files[x].remove()
         managers.session_manager.current.files = {}
 
-    arguments = property(lambda self: self._arguments)
-    container = property(_get_container)
-    environment = property(_get_environment)
-    headers = property(lambda self: self._headers)
-    cookies = property(_get_cookies)
-    client = property(lambda self: self._client)
-    server = property(lambda self: self._server)
-    protocol = property(lambda self: self._protocol)
-    shared_variables = property(lambda self: self._shared_vars)
-    render_type = property(_get_render_type)
-    dyn_libraries = property(_get_dyn_libraries)
+    def uploaded_file(self, guid):
+        u_file = managers.session_manager.current.files.pop(guid, None)
+        return Attachment(u_file) if u_file else None
+
+    @property
+    def environment(self):
+        return managers.request_manager.current.environment
+
+    @property
+    def cookies(self):
+        return managers.request_manager.current.cookies
+
+    @property
+    def container(self):  # TODO: change stub to real container object
+        class container_stub:
+            def __init__(self):
+                self.id = managers.request_manager.current.container_id
+        return container_stub()
+
+    @property
+    def render_type(self):
+        return managers.request_manager.current.render_type
+
+    @property
+    def dyn_libraries(self):
+        return managers.request_manager.current.dyn_libraries
