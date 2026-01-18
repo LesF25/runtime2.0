@@ -1,60 +1,75 @@
+from collections import UserDict
+from functools import cached_property
+from typing import Any
 
-from builtins import str
-from builtins import object
-class VDOM_dictionary(object):
-	"""base class for headers and cookies"""
-
-	def __init__(self, arguments):
-		"""constructor"""
-		self.dict = {}
-
-	def remove(self, name):
-		"""remove key"""
-		n = name.lower()
-		if n in self.dict:
-			del(self.dict[n])
-
-	def push(self, name, value=None):
-		"""replace key"""
-		n = name.lower()
-		if value:
-			self.dict[n] = value
-			return self.dict[n]
-		if n in self.dict:
-			return self.dict[n]
-		return None
-
-	def add(self, name, value=None):
-		"""add value to the existing key or create a new one"""
-		n = name.lower()
-		if value:
-			val = ""
-			if n in self.dict: val = self.dict[n]
-			if val == "": return self.push(n, value)
-			val += (";%s" %  str(value))
-			return self.push(n, val)
-		return self.push(n)
-
-	def value(self, name, value=None, push=True):
-		"""common value management method"""
-		if push: return self.push(name, value)
-		return self.add(name, value)
-
-	def __contains__(self, x):
-		return x.lower() in self.dict
+from request.cookies import VDOM_cookies
 
 
-class VDOM_headers(VDOM_dictionary):
-	"""Server headers"""
+class VDOM_headers(UserDict[str, str]):
+    def __init__(
+        self,
+        data: dict | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__()
+        self.update(data or {}, **kwargs)
 
-	def __init__(self, arguments):
-		""" Constructor """
-		self.dict = arguments
+    def __setitem__(
+        self,
+        key: str,
+        value: Any,
+    ) -> None:
+        super().__setitem__(
+            self._validate_key(key),
+            self._validate_value(value),
+        )
 
-	def headers(self, headers=None):
-		"""access headers dictionary"""
-		return self.dict
+    def __getitem__(self, key: str) -> str:
+        return super().__getitem__(
+            self._validate_key(key),
+        )
 
-	def header(self, name, value=None, push=True):
-		"""read or push/add header"""
-		return self.value(name, value, push)
+    def __contains__(self, key: str) -> bool:
+        return super().__contains__(
+            self._validate_key(key),
+        )
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return super().get(
+            self._validate_key(key),
+            default,
+        )
+
+    def pop(self, key: str, default: Any = None) -> str:
+        return super().pop(
+            self._validate_key(key),
+            default,
+        )
+
+    def add(self, key: str, value: str) -> None:
+        if key in self:
+            self[key] = f'{self[key]}, {self._validate_value(value)}'
+        else:
+            self[key] = value
+
+    def _validate_key(self, key: Any) -> str:
+        if not isinstance(key, str):
+            raise TypeError(f'Header name must be a string, not {type(key).__name__}')
+
+        return key.lower()
+
+    def _validate_value(self, value: Any) -> str:
+        if not isinstance(
+            value,
+            self._valid_value_types,
+        ):
+            raise TypeError(f'Header value must be str, int, or float, not {type(value).__name__}')
+
+        return str(value)
+
+    @cached_property
+    def _valid_value_types(self) -> tuple:
+        return (
+            str, int, float,
+            VDOM_cookies,
+        )
