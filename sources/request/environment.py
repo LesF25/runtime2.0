@@ -9,7 +9,7 @@ from sources.version import SERVER_NAME, SERVER_VERSION
 from sources.web.wsgi_request_handler import VDOM_wsgi_request_handler
 
 
-@dataclass(frozen=True)
+@dataclass
 class VDOM_environment:
     request_method: str
     request_uri: str
@@ -68,15 +68,3 @@ class VDOM_environment:
             http_host=http_host,
             headers=http_headers,
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        data = {
-            key.upper(): val
-            for key, val in vars(self).items()
-        }
-        _ = data.pop('HEADERS', None)
-
-        return {
-            **data,
-            **self.headers,
-        }
