@@ -1,6 +1,7 @@
 import threading
 
-from utils.exception import VDOM_exception
+from sources.request import VDOM_request
+from sources.utils.exception import VDOM_exception
 
 
 class VDOM_request_manager:
@@ -8,8 +9,8 @@ class VDOM_request_manager:
 		self._local = threading.local()
 
 	@property
-	def current(self):
-		request = getattr(self._local, 'current_request')
+	def current(self) -> VDOM_request:
+		request: VDOM_request = getattr(self._local, 'current_request')
 		if request is None:
 			raise VDOM_exception(
 				'No request associated with current thread'
@@ -18,7 +19,7 @@ class VDOM_request_manager:
 		return request
 
 	@current.setter
-	def current(self, request) -> None:
+	def current(self, request: VDOM_request) -> None:
 		self._local.current_request = request
 
 	@current.deleter
