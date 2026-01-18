@@ -1,36 +1,48 @@
-from __future__ import absolute_import
+from collections import UserDict
+from typing import Self
 
-from builtins import str
-import sys
 
-from .headers import VDOM_dictionary
+def parse_cookie_str(
+	cookies: str,
+) -> dict[str, str]:
+	result = {}
 
-class VDOM_cookies(VDOM_dictionary):
-	"""Server cookies"""
+	for item in cookies.split(';'):
+		item = item.strip()
+		if not item:
+			continue
 
-	def __init__(self, headers):
-		""" Constructor """
-		self.dict = {}
-		if "cookie" in headers:
-			cookie_list = headers["cookie"].split(';')
-			for item in cookie_list:
-				items = item.split('=')
-				if len(items) == 2:
-					self.dict[str(items[0]).strip().lower()] = str(items[1]).strip()
+		if '=' not in item:
+			continue
 
-	def cookies(self, cookies=None):
-		"""access cookies dictionary"""
-		return self.dict
+		key, val = item.split('=', 1)
+		key = key.strip()
+		if key:
+			result[key] = val.strip()
 
-	def cookie(self, name, value=None, push=True):
-		"""read or push/add cookie"""
-		return self.value(name, value, push)
+	return result
 
-	def get_string(self):
-		"""convert dictionary to the header string"""
-		#return 
-		string = ""
-		for c in list(self.dict.keys()):
-			if string != "": string += "; "
-			string += ("%s=%s" % (c, self.dict[c]))
-		return string
+
+class VDOM_cookies(UserDict[str, str]):
+	@classmethod
+	def from_str(cls, cookies: str | None) -> Self:
+		if not cookies:
+			return cls()
+
+		return cls(parse_cookie_str(cookies))
+
+	def __init__(
+		self,
+		data: dict | None = None,
+	) -> None:
+		super().__init__()
+		self.update({
+			str(key): str(val)
+			for key, val in (data or {}).items()
+		})
+
+	def __str__(self) -> str:
+		return '; '.join(
+			f'{k}={v}'
+			for k, v in self.data.items()
+		)
