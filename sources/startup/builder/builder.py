@@ -1,6 +1,7 @@
 import re
+import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, List
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
@@ -22,8 +23,8 @@ class BuildExtension(build_ext):
                 'unix': (['-Werror'], []),
             }
 
-            if options := options.get(self.compiler.compiler_type):
-                compiler_options, linker_options = options
+            if option := options.get(self.compiler.compiler_type):
+                compiler_options, linker_options = option
 
                 for extension in self.extensions:  # type: Extension
                     extension.extra_compile_args = compiler_options
@@ -41,16 +42,17 @@ class Builder:
 
     def execute(self, *options, **keywords) -> None:
         capture = OutputCapture('setup.log')
+        arguments_backup = sys.argv[:]
         try:
+            sys.argv = ["setup.py"] + list(options)
             with capture:
                 self._run_setup(
                     args=options,
-                    extensions=keywords.get('extensions', []),
+                    extensions=keywords.get('extensions'),
                 )
 
-        except Exception as error:
+        except BaseException as error:
             error_message = re.sub(r'^(error:\s)?', '', str(error), flags=re.IGNORECASE)
-
             show('')
             warn(error_message)
 
@@ -61,6 +63,8 @@ class Builder:
                     continuation=settings.LOGGING_INDENT
                 )
             raise ReportBuilderFailureError from error
+        finally:
+            sys.argv = arguments_backup
 
     def list(self) -> None:
         with section('extensions'):
@@ -91,7 +95,7 @@ class Builder:
     def _run_setup(
         self,
         args: Sequence[str],
-        extensions: 'list[Extension]',
+        extensions: List[Extension] | None,
     ) -> None:
         setup(
             name='runtime',

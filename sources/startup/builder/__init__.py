@@ -17,6 +17,8 @@ EXTENSIONS = {
     )
 }
 
+show_warning = False
+
 
 class ArgumentsError(Exception):
     pass
@@ -27,7 +29,7 @@ class ExceptionalArgumentParser(ArgumentParser):
         raise ArgumentsError(message)
 
 
-def register_build_command(subparsers: Any) -> ArgumentParser:
+def _register_build_command(subparsers: Any) -> ArgumentParser:
     subparser = subparsers.add_parser(
         'build',
         help='...',
@@ -38,7 +40,7 @@ def register_build_command(subparsers: Any) -> ArgumentParser:
         action='store_true',
         dest='list',
         default=False,
-        help='show availavle exensions',
+        help='show available extensions',
     )
     subparser.add_argument(
         '--cleanup',
@@ -57,7 +59,7 @@ def register_build_command(subparsers: Any) -> ArgumentParser:
     return subparser
 
 
-def register_deploy_command(subparsers: Any) -> ArgumentParser:
+def _register_deploy_command(subparsers: Any) -> ArgumentParser:
     subparser = subparsers.add_parser(
         'deploy',
         help='...',
@@ -66,7 +68,7 @@ def register_deploy_command(subparsers: Any) -> ArgumentParser:
     return subparser
 
 
-def register_install_command(subparsers: Any) -> ArgumentParser:
+def _register_install_command(subparsers: Any) -> ArgumentParser:
     subparser = subparsers.add_parser(
         'install',
         help='...',
@@ -76,7 +78,7 @@ def register_install_command(subparsers: Any) -> ArgumentParser:
     return subparser
 
 
-def parse_args() -> dict[str, Any]:
+def _parse_args() -> dict[str, Any]:
     parser = ExceptionalArgumentParser(add_help=False)
     parser.add_argument(
         '-c',
@@ -87,14 +89,14 @@ def parse_args() -> dict[str, Any]:
 
     subparsers = parser.add_subparsers(dest='action')
 
-    register_build_command(subparsers)
-    register_deploy_command(subparsers)
-    register_install_command(subparsers)
+    _register_build_command(subparsers)
+    _register_deploy_command(subparsers)
+    _register_install_command(subparsers)
 
     return vars(parser.parse_args())
 
 
-def ensure_temp_directory() -> None:
+def _ensure_temp_directory() -> None:
     temp_path = Path(settings.TEMPORARY_LOCATION)
     if temp_path.is_dir():
         return
@@ -107,35 +109,36 @@ def ensure_temp_directory() -> None:
         exit(1)
 
 
-def run_builder(args: dict[str, Any]) -> None:
+def _run_builder(args: dict[str, Any]) -> None:
     builder = Builder(EXTENSIONS)
 
     if args.get('list'):
         builder.list()
-
     elif args.get('cleanup'):
         builder.cleanup()
-
-    elif extensions := args.get('extensions'):
-        builder.build(*extensions)
-
     else:
-        builder.build()
+        ext = args.get('extensions')
+        builder.build(
+            *(ext if ext else [])
+        )
 
 
-def main() -> None:
+def run() -> None:
+    global show_warning
+
     try:
-        args = parse_args()
+        args = _parse_args()
     except ArgumentsError:
-        exit(1)
+        show_warning = True
+        return
 
-    ensure_temp_directory()
+    _ensure_temp_directory()
 
     try:
-        run_builder(args)
+        _run_builder(args)
     except ReportBuilderFailureError:
         pass
 
 
 if __name__ == '__main__':
-    main()
+    run()
