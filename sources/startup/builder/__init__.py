@@ -1,20 +1,23 @@
-
-import os
-
+from pathlib import Path
 from sys import exit
+from typing import Any
+
 from argparse import ArgumentParser
 from setuptools import Extension
 
-import settings
-
-from utils.output import show, warn
+from sources import settings
+from sources.utils.output import show, warn
 from .builder import Builder, ReportBuilderFailureError
 
 EXTENSIONS = {
-    "vdomxml": Extension("memory.vdomxml._loads",
-        sources=["memory/vdomxml/loads.c"],
-        include_dirs=["memory/vdomxml/include"])
+    'vdomxml': Extension(
+        'memory.vdomxml._loads',
+        sources=['memory/vdomxml/loads.c'],
+        include_dirs=['memory/vdomxml/include'],
+    )
 }
+
+show_warning = False
 
 
 class ArgumentsError(Exception):
@@ -22,54 +25,120 @@ class ArgumentsError(Exception):
 
 
 class ExceptionalArgumentParser(ArgumentParser):
-
     def error(self, message):
         raise ArgumentsError(message)
 
 
-parser = ExceptionalArgumentParser(add_help=False)
-parser.add_argument("-c", "--configure", dest="filename", default=None)
-subparsers = parser.add_subparsers(dest="action")
-subparser = subparsers.add_parser("build")
-subparsers.add_parser("deploy") #Fixed parser yielding everytime manage.py is called but without build parameters
-subparsers.add_parser("install").add_argument("applicaion.xml")
-subparser.add_argument("-l", "--list", action="store_true", dest="list", default=False,
-    help="show availavle exensions")
-subparser.add_argument("--cleanup", action="store_true", dest="cleanup", default=False,
-    help="cleanup building directories")
-subparser.add_argument("extensions", nargs="*", metavar="extension",
-    help="optional extensions to build")
+def _register_build_command(subparsers: Any) -> ArgumentParser:
+    subparser = subparsers.add_parser(
+        'build',
+        help='...',
+    )
+    subparser.add_argument(
+        '-l',
+        '--list',
+        action='store_true',
+        dest='list',
+        default=False,
+        help='show available extensions',
+    )
+    subparser.add_argument(
+        '--cleanup',
+        action='store_true',
+        dest='cleanup',
+        default=False,
+        help='cleanup building directories',
+    )
+    subparser.add_argument(
+        'extensions',
+        nargs='*',
+        metavar='extension',
+        help='optional extensions to build',
+    )
 
-try:
-    arguments = parser.parse_args()
-except ArgumentsError as error:
-    show_warning = True
-else:
-    show_warning = False
+    return subparser
 
-    if not os.path.isdir(settings.TEMPORARY_LOCATION):
-        show("prepare temporary directory")
-        try:
-            os.makedirs(settings.TEMPORARY_LOCATION)
-        except Exception as error:
-            warn("unable to prepare temporary directory: %s" % error)
-            exit(1)
+
+def _register_deploy_command(subparsers: Any) -> ArgumentParser:
+    subparser = subparsers.add_parser(
+        'deploy',
+        help='...',
+    )
+
+    return subparser
+
+
+def _register_install_command(subparsers: Any) -> ArgumentParser:
+    subparser = subparsers.add_parser(
+        'install',
+        help='...',
+    )
+    subparser.add_argument('application.xml')
+
+    return subparser
+
+
+def _parse_args() -> dict[str, Any]:
+    parser = ExceptionalArgumentParser(add_help=False)
+    parser.add_argument(
+        '-c',
+        '--configure',
+        dest='filename',
+        default=None
+    )
+
+    subparsers = parser.add_subparsers(dest='action')
+
+    _register_build_command(subparsers)
+    _register_deploy_command(subparsers)
+    _register_install_command(subparsers)
+
+    return vars(parser.parse_args())
+
+
+def _ensure_temp_directory() -> None:
+    temp_path = Path(settings.TEMPORARY_LOCATION)
+    if temp_path.is_dir():
+        return
+
+    show('Prepare temporary directory')
+    try:
+        temp_path.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        warn(f'Unable to prepare temporary directory: {error}')
+        exit(1)
+
+
+def _run_builder(args: dict[str, Any]) -> None:
+    builder = Builder(EXTENSIONS)
+
+    if args.get('list'):
+        builder.list()
+    elif args.get('cleanup'):
+        builder.cleanup()
+    else:
+        ext = args.get('extensions')
+        builder.build(
+            *(ext if ext else [])
+        )
+
+
+def run() -> None:
+    global show_warning
 
     try:
-        builder = Builder(EXTENSIONS)
-        if getattr(arguments, 'list'):
-            builder.list()
-        elif getattr(arguments, 'cleanup'):
-            builder.cleanup()
-        elif  getattr(arguments, 'extensions'):
-            builder.build(*arguments.extensions)
-        else:
-            builder.build()
+        args = _parse_args()
+    except ArgumentsError:
+        show_warning = True
+        return
+
+    _ensure_temp_directory()
+
+    try:
+        _run_builder(args)
     except ReportBuilderFailureError:
-        # hack
         pass
-        # exit(1)
-    except BaseException:
-        raise
-    else:
-        exit(0)
+
+
+if __name__ == '__main__':
+    run()
